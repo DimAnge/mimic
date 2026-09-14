@@ -1,0 +1,18 @@
+[Unit]
+Description=Mimic bridge - serves system, calendar, music and usage data to the Pico W
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+# Adjust the path to wherever you cloned the repository.
+ExecStart=/usr/bin/python3 %h/projects/mimic/bridge/bridge.py
+WorkingDirectory=%h/projects/mimic/bridge
+Restart=on-failure
+RestartSec=5
+# The bridge holds the tokens, so keep it to the local network.
+Environment=MIMIC_BIND=0.0.0.0
+Environment=MIMIC_PORT=8080
+
+[Install]
+WantedBy=default.target

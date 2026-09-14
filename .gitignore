@@ -1,0 +1,31 @@
+# secrets and local config
+settings.toml
+bridge/config.json
+bridge/*.token
+.env
+
+# python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+
+# circuitpython artefacts
+boot_out.txt
+.fseventsd/
+.metadata_never_index
+.Trashes
+*.uf2
+
+# 3d printing
+hardware/stl/*.gcode
+hardware/**/*.3mf
+*.bak
+
+# os
+.DS_Store
+Thumbs.db
+
+# editors
+.vscode/
+.idea/

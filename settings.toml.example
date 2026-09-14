@@ -1,0 +1,17 @@
+# Copy this to settings.toml on the CIRCUITPY drive and fill it in.
+# settings.toml is gitignored - do not commit the real one.
+
+# The Pico W radio is 2.4 GHz only.
+CIRCUITPY_WIFI_SSID     = "your-network"
+CIRCUITPY_WIFI_PASSWORD = "your-password"
+
+# The PC running bridge.py, on your local network.
+BRIDGE_HOST = "192.168.0.0"
+BRIDGE_PORT = "8080"
+
+# Used by the weather tab.
+CITY     = "Athens"
+TIMEZONE = "Europe/Athens"
+
+# Optional: 24 for 24-hour clock, 12 for AM/PM.
+CLOCK = "24"

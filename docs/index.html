@@ -1,0 +1,709 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Mimic — a 1-bit desk buddy for the Raspberry Pi Pico W</title>
+<meta name="description" content="Mimic is a small desk companion built from a Raspberry Pi Pico W, a 128x64 OLED and two buttons. Weather, music, system stats, a timer and a face that reacts to your day.">
+<meta name="color-scheme" content="light">
+
+<link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
+<link rel="alternate icon" href="assets/favicon-32.png" sizes="32x32">
+<link rel="apple-touch-icon" href="assets/favicon-180.png">
+
+<meta property="og:type" content="website">
+<meta property="og:title" content="Mimic — a 1-bit desk buddy">
+<meta property="og:description" content="A Pico W, a 128x64 OLED and two buttons. Weather, music, system stats, a timer and a face that reacts to your day.">
+<meta property="og:url" content="https://YOUR-USERNAME.github.io/mimic/">
+<meta property="og:image" content="https://YOUR-USERNAME.github.io/mimic/assets/social-preview.png">
+<meta name="twitter:card" content="summary_large_image">
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;800&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+
+<style>
+:root{
+  --paper:#E7E9E6; --paper-2:#F2F3F1; --ink:#16181A; --ink-2:#5B6166;
+  --rule:#C9CDC8; --rule-2:#D9DCD8;
+  --case:#16181A; --case-edge:#2E3337; --screen:#080A0C; --glow:#BFE3FF;
+  --w-vcc:#D0342C; --w-gnd:#3A3F44; --w-sda:#2E6FD9; --w-scl:#E0A100;
+  --w-btn:#2E9E5B; --w-buz:#7A4FC0;
+  --sans:'Archivo','Helvetica Neue',Helvetica,Arial,sans-serif;
+  --mono:'IBM Plex Mono',ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+}
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{
+  margin:0; background:var(--paper); color:var(--ink);
+  font-family:var(--sans); font-size:16px; line-height:1.6;
+  font-synthesis-weight:none;
+  background-image:radial-gradient(var(--rule-2) 1px, transparent 1px);
+  background-size:18px 18px;
+}
+@media (min-width:900px){ body{font-size:17px} }
+a{color:inherit}
+h1,h2,h3{margin:0; letter-spacing:-0.025em; font-weight:800; line-height:1.02}
+p{margin:0}
+.wrap{max-width:1140px; margin:0 auto; padding-inline:clamp(18px,5vw,56px)}
+.prose{max-width:60ch}
+.mono{font-family:var(--mono)}
+
+/* ---------- header ---------- */
+.top{display:flex; align-items:center; gap:14px; padding-block:20px 8px; flex-wrap:wrap}
+.top img{display:block; height:38px; width:auto}
+.top nav{margin-left:auto; display:flex; gap:clamp(14px,3vw,28px); font-family:var(--mono); font-size:13px}
+.top nav a{text-decoration:none; color:var(--ink-2); padding-block:6px; border-bottom:2px solid transparent}
+.top nav a:hover{color:var(--ink); border-bottom-color:var(--ink)}
+@media (max-width:660px){ .top nav a.opt{display:none} }
+@media (max-width:520px){
+  .top img{height:30px}
+  .top nav{gap:13px; font-size:12px; width:auto}
+}
+
+/* ---------- hero ---------- */
+.hero{display:grid; gap:clamp(32px,5vw,56px); padding-block:clamp(28px,6vw,64px) clamp(36px,6vw,72px)}
+@media (min-width:920px){
+  .hero{grid-template-columns:minmax(0,1fr) minmax(0,430px); align-items:center}
+}
+h1{font-size:clamp(2.15rem,7.4vw,4.3rem); letter-spacing:-0.04em}
+.hero p.lede{margin-top:22px; font-size:clamp(1.02rem,2.4vw,1.16rem); max-width:46ch; color:#23272B}
+.actions{display:flex; flex-wrap:wrap; gap:12px; margin-top:30px}
+.btn{
+  font-family:var(--mono); font-size:14px; text-decoration:none; padding:11px 20px;
+  border:2px solid var(--ink); border-radius:2px; background:var(--ink); color:var(--paper);
+}
+.btn:hover{background:#000; border-color:#000}
+.btn--ghost{background:transparent; color:var(--ink)}
+.btn--ghost:hover{background:var(--ink); color:var(--paper)}
+.spec{margin-top:30px; font-family:var(--mono); font-size:12.5px; color:var(--ink-2); line-height:2}
+.spec b{font-weight:500; color:var(--ink)}
+
+/* ---------- the device ---------- */
+.device{width:100%; max-width:430px; margin-inline:auto}
+.case{
+  background:var(--case); border-radius:22px; padding:16px 16px 10px;
+  box-shadow:0 1px 0 #fff, 0 18px 40px -22px rgba(10,14,20,.55);
+  border:1px solid #000;
+}
+.case canvas{
+  display:block; width:100%; height:auto; aspect-ratio:2/1; background:var(--screen);
+  border-radius:6px; image-rendering:pixelated; image-rendering:crisp-edges;
+}
+.dots{display:flex; justify-content:center; gap:8px; padding:12px 0 4px}
+.dots button{
+  width:22px; height:22px; padding:0; border:0; background:none; cursor:pointer;
+  display:grid; place-items:center; border-radius:50%;
+}
+.dots button::after{content:''; width:6px; height:6px; border-radius:50%; background:#4A5055}
+.dots button[aria-current="true"]::after{background:var(--glow); width:9px; height:9px}
+.dots button:focus-visible{outline:2px solid var(--glow); outline-offset:1px}
+.keys{display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-top:14px}
+.key{
+  font-family:var(--mono); font-size:12.5px; text-align:left; cursor:pointer;
+  background:var(--paper-2); border:2px solid var(--ink); border-radius:3px;
+  padding:9px 12px; color:var(--ink); box-shadow:0 3px 0 var(--ink); transition:none;
+}
+.key b{display:block; font-weight:500; font-size:11px; color:var(--ink-2)}
+.key:active,.key[data-down="true"]{transform:translateY(3px); box-shadow:0 0 0 var(--ink)}
+.key:focus-visible{outline:2px solid var(--w-sda); outline-offset:2px}
+.hint{font-family:var(--mono); font-size:11.5px; color:var(--ink-2); text-align:center; margin-top:12px}
+
+/* ---------- sections ---------- */
+section{padding-block:clamp(40px,7vw,76px); border-top:1px solid var(--rule)}
+.head{display:flex; align-items:baseline; gap:16px; flex-wrap:wrap; margin-bottom:10px}
+.head h2{font-size:clamp(1.6rem,4vw,2.3rem)}
+.head span{font-family:var(--mono); font-size:12px; color:var(--ink-2)}
+section > .wrap > p.intro{margin-top:14px; color:#23272B}
+
+/* screens list */
+.screens{margin-top:34px; border-top:1px solid var(--rule)}
+.screen-row{
+  display:grid; grid-template-columns:118px minmax(0,1fr) auto; gap:18px; align-items:baseline;
+  width:100%; text-align:left; background:none; border:0; border-bottom:1px solid var(--rule);
+  padding:16px 4px; cursor:pointer; font:inherit; color:inherit;
+}
+.screen-row:hover{background:rgba(255,255,255,.55)}
+.screen-row[aria-current="true"]{background:var(--ink); color:var(--paper)}
+.screen-row[aria-current="true"] .row-act{color:#A8B0B6}
+.row-name{font-family:var(--mono); font-size:13.5px; letter-spacing:.08em}
+.row-desc{font-size:15.5px}
+.row-act{font-family:var(--mono); font-size:11.5px; color:var(--ink-2); white-space:nowrap}
+@media (max-width:700px){
+  .screen-row{grid-template-columns:1fr; gap:6px}
+  .row-act{white-space:normal}
+}
+
+/* parts + wiring */
+.parts{width:100%; border-collapse:collapse; margin-top:28px; font-size:15px}
+.parts th,.parts td{text-align:left; padding:11px 12px 11px 0; border-bottom:1px solid var(--rule); vertical-align:top}
+.parts th{font-family:var(--mono); font-size:11.5px; font-weight:500; color:var(--ink-2); letter-spacing:.06em}
+.parts td.n{font-family:var(--mono); font-size:13px; white-space:nowrap}
+figure{margin:34px 0 0}
+figure img{width:100%; height:auto; display:block; background:#fff; border:1px solid var(--rule); border-radius:4px}
+figcaption{font-family:var(--mono); font-size:12px; color:var(--ink-2); margin-top:10px}
+.pinmap{margin-top:26px; font-family:var(--mono); font-size:13px; border-collapse:collapse; width:100%}
+.pinmap td{padding:8px 10px 8px 0; border-bottom:1px solid var(--rule-2)}
+.pinmap td:first-child{width:14px}
+.swatch{display:inline-block; width:12px; height:12px; border-radius:2px}
+
+/* steps */
+ol.steps{list-style:none; counter-reset:s; padding:0; margin:32px 0 0}
+ol.steps li{counter-increment:s; display:grid; grid-template-columns:46px minmax(0,1fr); gap:18px; padding:20px 0; border-bottom:1px solid var(--rule)}
+ol.steps li::before{
+  content:counter(s,decimal-leading-zero); font-family:var(--mono); font-size:13px;
+  color:var(--ink-2); padding-top:3px;
+}
+ol.steps h3{font-size:1.06rem; font-weight:600; letter-spacing:-0.01em}
+ol.steps p{margin-top:6px; max-width:58ch; color:#23272B; font-size:15.5px}
+code{font-family:var(--mono); font-size:.88em; background:var(--paper-2); border:1px solid var(--rule-2); border-radius:3px; padding:1px 5px}
+pre{
+  font-family:var(--mono); font-size:13px; line-height:1.75; margin:14px 0 0; padding:14px 16px;
+  background:var(--case); color:#D7DDE2; border-radius:4px; overflow-x:auto;
+}
+pre code{background:none; border:0; padding:0; color:inherit; font-size:inherit}
+pre .c{color:#7E8A93}
+
+/* bridge + case cards, kept plain */
+.cols{display:grid; gap:26px; margin-top:30px}
+@media (min-width:820px){ .cols{grid-template-columns:repeat(3,minmax(0,1fr)); gap:34px} }
+.col h3{font-size:1.02rem; font-weight:600; letter-spacing:0}
+.col p{margin-top:8px; font-size:15px; color:#23272B}
+.col .tag{font-family:var(--mono); font-size:11.5px; color:var(--ink-2); display:block; margin-bottom:8px}
+
+footer{border-top:1px solid var(--rule); padding-block:36px 56px}
+footer .wrap{display:flex; flex-wrap:wrap; gap:18px 32px; align-items:center; font-family:var(--mono); font-size:12.5px; color:var(--ink-2)}
+footer a{color:var(--ink-2)}
+footer img{height:26px; width:auto; opacity:.8}
+
+:focus-visible{outline:2px solid var(--w-sda); outline-offset:2px}
+@media (prefers-reduced-motion:reduce){ *{animation:none!important; transition:none!important} }
+</style>
+</head>
+<body>
+
+<header class="wrap top">
+  <img src="assets/logo.svg" alt="Mimic">
+  <nav>
+    <a href="#screens">Screens</a>
+    <a href="#parts">Parts</a>
+    <a href="#build">Build</a>
+    <a class="opt" href="#bridge">Bridge</a>
+    <a href="https://github.com/YOUR-USERNAME/mimic">GitHub</a>
+  </nav>
+</header>
+
+<main>
+<div class="wrap hero">
+  <div>
+    <h1>A desk buddy<br>that looks back.</h1>
+    <p class="lede">Mimic is a Raspberry Pi Pico W, a 128&times;64 OLED and two buttons. It keeps an eye on the weather, your calendar, your music and your machine — and pulls a face about all of it.</p>
+    <div class="actions">
+      <a class="btn" href="https://github.com/YOUR-USERNAME/mimic">Get the code</a>
+      <a class="btn btn--ghost" href="#build">Build one</a>
+    </div>
+    <div class="spec">
+      <b>CircuitPython</b> on a Pico W &middot; <b>SSD1306</b> over I2C<br>
+      <b>8</b> screens &middot; <b>2</b> buttons &middot; <b>1</b> passive buzzer &middot; <b>3</b> printed parts
+    </div>
+  </div>
+
+  <div class="device">
+    <div class="case">
+      <canvas id="screen" width="512" height="256" role="img"
+              aria-label="A simulation of the Mimic screen. Use the buttons below to change screens."></canvas>
+      <div class="dots" id="dots" aria-label="Screens"></div>
+    </div>
+    <div class="keys">
+      <button class="key" id="b1">Next screen<b>B1 · hold for home</b></button>
+      <button class="key" id="b2">Act<b>B2 · hold to repeat</b></button>
+    </div>
+    <p class="hint">This is the real interface, running in your browser.</p>
+  </div>
+</div>
+
+<section id="screens">
+  <div class="wrap">
+    <div class="head"><h2>Eight screens, two buttons</h2><span>tap a row to send it to the screen</span></div>
+    <p class="intro prose">One button walks the tabs and goes home when you hold it. The other does whatever the current screen needs. Nothing is more than two presses away.</p>
+    <div class="screens" id="screenList"></div>
+  </div>
+</section>
+
+<section id="parts">
+  <div class="wrap">
+    <div class="head"><h2>What it is made of</h2><span>about £25 of parts</span></div>
+    <p class="intro prose">Everything sits on a half-size breadboard inside a printed case. No soldering — female-to-male jumpers, and buttons that come pre-assembled on discs.</p>
+
+    <table class="parts">
+      <thead><tr><th>Part</th><th>What it does</th><th>Notes</th></tr></thead>
+      <tbody>
+        <tr><td class="n">Raspberry Pi Pico W</td><td>Brains and Wi-Fi</td><td>2.4&nbsp;GHz networks only</td></tr>
+        <tr><td class="n">SSD1306 OLED 0.96&Prime;</td><td>The face, 128&times;64 pixels</td><td>I2C, monochrome — no colour anywhere</td></tr>
+        <tr><td class="n">2 &times; tactile buttons</td><td>The whole interface</td><td>6&times;6&nbsp;mm on 25.4&nbsp;mm discs</td></tr>
+        <tr><td class="n">Passive buzzer</td><td>Chiptune jingles</td><td>Arbitrary frequencies, so short melodies work</td></tr>
+        <tr><td class="n">Half-size breadboard</td><td>Holds it together</td><td>Trim the top rail strip to fit the tray</td></tr>
+        <tr><td class="n">Dupont jumpers</td><td>Nine connections</td><td>Female-to-male</td></tr>
+      </tbody>
+    </table>
+
+    <figure>
+      <img src="assets/wiring.svg" alt="Wiring map: OLED SDA to GP0, SCL to GP1, ground to pin 3 and 3V3 to pin 36; button 1 to GP2 and button 2 to GP3 with their other legs to ground; buzzer signal to GP20 with power and ground.">
+      <figcaption>Signal map, not to scale. Physical pin numbers are on the board.</figcaption>
+    </figure>
+
+    <table class="pinmap">
+      <tr><td><span class="swatch" style="background:var(--w-sda)"></span></td><td>OLED SDA</td><td>GP0 · pin 1</td></tr>
+      <tr><td><span class="swatch" style="background:var(--w-scl)"></span></td><td>OLED SCL</td><td>GP1 · pin 2</td></tr>
+      <tr><td><span class="swatch" style="background:var(--w-gnd)"></span></td><td>OLED GND</td><td>GND · pin 3</td></tr>
+      <tr><td><span class="swatch" style="background:var(--w-vcc)"></span></td><td>OLED VCC</td><td>3V3 OUT · pin 36</td></tr>
+      <tr><td><span class="swatch" style="background:var(--w-btn)"></span></td><td>Button 1</td><td>GP2 · pin 4, other leg to GND</td></tr>
+      <tr><td><span class="swatch" style="background:var(--w-btn)"></span></td><td>Button 2</td><td>GP3 · pin 5, other leg to GND</td></tr>
+      <tr><td><span class="swatch" style="background:var(--w-buz)"></span></td><td>Buzzer signal</td><td>GP20 · pin 26, plus 3V3 and GND</td></tr>
+    </table>
+  </div>
+</section>
+
+<section id="build">
+  <div class="wrap">
+    <div class="head"><h2>Build one</h2><span>an evening, plus print time</span></div>
+    <p class="intro prose">Steps one to five get a face on the screen. Six and seven are what make it useful.</p>
+    <ol class="steps">
+      <li>
+        <div>
+          <h3>Flash CircuitPython</h3>
+          <p>Hold BOOTSEL, plug the Pico W in, drop the <code>.uf2</code> on the RPI-RP2 drive. It reboots as a drive called CIRCUITPY.</p>
+        </div>
+      </li>
+      <li>
+        <div>
+          <h3>Copy the libraries</h3>
+          <p>From the CircuitPython library bundle, copy the display, text, connection-manager and requests modules into <code>/lib</code> on CIRCUITPY.</p>
+        </div>
+      </li>
+      <li>
+        <div>
+          <h3>Wire it up</h3>
+          <p>Nine jumpers, following the map above. Check every connection before you trust anything else, and check it again after any change to the case.</p>
+        </div>
+      </li>
+      <li>
+        <div>
+          <h3>Add your settings</h3>
+          <p>Put your Wi-Fi details and the address of your PC in <code>settings.toml</code>. Remember the radio is 2.4&nbsp;GHz only.</p>
+<pre><code>CIRCUITPY_WIFI_SSID = "your-network"
+CIRCUITPY_WIFI_PASSWORD = "your-password"
+BRIDGE_HOST = "192.168.1.42"
+CITY = "Athens"</code></pre>
+        </div>
+      </li>
+      <li>
+        <div>
+          <h3>Deploy</h3>
+          <p>Copy the six board files across and flush the write. Skipping <code>sync</code> is how you get a half-written file and a board that boots to an error.</p>
+<pre><code>cp code.py eyes.py dino.py eightball.py sfx.py icons.py \
+   /media/$USER/CIRCUITPY/ &amp;&amp; sync
+tio /dev/ttyACM0   <span class="c"># watch it boot</span></code></pre>
+        </div>
+      </li>
+      <li>
+        <div>
+          <h3>Start the bridge</h3>
+          <p>Run <code>bridge.py</code> on the machine Mimic sits next to, then install it as a user service so it comes back after a reboot.</p>
+<pre><code>systemctl --user enable --now mimic-bridge</code></pre>
+        </div>
+      </li>
+      <li>
+        <div>
+          <h3>Print the case</h3>
+          <p>Three parts from one OpenSCAD file: the tray, a lid with a cable slot, and a spacer that sets the stack height. The screen stand and the button discs come from MakerWorld.</p>
+        </div>
+      </li>
+    </ol>
+  </div>
+</section>
+
+<section id="bridge">
+  <div class="wrap">
+    <div class="head"><h2>The bridge</h2><span>bridge.py, standard library only</span></div>
+    <p class="intro prose">A Pico W has no business holding your Spotify tokens or your calendar URL. So it doesn't. A small HTTP server on your PC does the talking and hands Mimic plain numbers over your own network.</p>
+    <div class="cols">
+      <div class="col">
+        <span class="tag">GET /stats</span>
+        <h3>Your machine, in four numbers</h3>
+        <p>CPU load, memory, uptime and disk, read on the PC where that information already lives.</p>
+      </div>
+      <div class="col">
+        <span class="tag">GET /next</span>
+        <h3>The meeting popup</h3>
+        <p>The bridge parses your calendar's private iCal feed and returns only the next event and its start time.</p>
+      </div>
+      <div class="col">
+        <span class="tag">GET /now</span>
+        <h3>Music and usage</h3>
+        <p>Spotify playback state and how much of your Claude usage window is gone. Tokens are refreshed on the PC and never leave it.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="case">
+  <div class="wrap">
+    <div class="head"><h2>The case</h2><span>OpenSCAD, v6</span></div>
+    <p class="intro prose">Three custom parts printed from one OpenSCAD file, plus a screen stand and button assemblies from MakerWorld. The breadboard drops into the tray, the spacer sets the stack height, the lid lifts off.</p>
+    <div class="cols">
+      <div class="col">
+        <span class="tag">tray.stl</span>
+        <h3>The body</h3>
+        <p>Breadboard pocket, USB opening on the right wall, and counterbores for the pre-assembled button discs.</p>
+      </div>
+      <div class="col">
+        <span class="tag">lid.stl</span>
+        <h3>The lid</h3>
+        <p>Locating lip and a cable pass-through. Lifts off whenever you want to get at the breadboard.</p>
+      </div>
+      <div class="col">
+        <span class="tag">spacer.stl</span>
+        <h3>The spacer</h3>
+        <p>Sets the height of the stack inside the tray so the board and breadboard sit where the openings expect them.</p>
+      </div>
+    </div>
+  </div>
+</section>
+</main>
+
+<footer>
+  <div class="wrap">
+    <img src="assets/logo-mark.svg" alt="">
+    <span>MIT licensed</span>
+    <span>CircuitPython &middot; OpenSCAD</span>
+    <a href="https://github.com/YOUR-USERNAME/mimic">github.com/YOUR-USERNAME/mimic</a>
+    <span style="margin-left:auto">Made on a desk, for a desk.</span>
+  </div>
+</footer>
+
+<script>
+(function(){
+"use strict";
+const W=128, H=64;
+const disp=document.getElementById('screen');
+const dctx=disp.getContext('2d');
+const off=document.createElement('canvas'); off.width=W; off.height=H;
+const o=off.getContext('2d',{willReadFrequently:true});
+const MONO='"IBM Plex Mono",ui-monospace,monospace';
+
+/* ---------- 1-bit drawing helpers ---------- */
+function clear(){ o.fillStyle='#000'; o.fillRect(0,0,W,H); o.fillStyle='#fff'; }
+function rect(x,y,w,h){ o.fillStyle='#fff'; o.fillRect(x|0,y|0,w|0,h|0); }
+function erase(x,y,w,h){ o.fillStyle='#000'; o.fillRect(x|0,y|0,w|0,h|0); }
+function rrect(x,y,w,h,r,on){
+  o.fillStyle=on===false?'#000':'#fff';
+  o.beginPath();
+  if(o.roundRect){ o.roundRect(x,y,w,h,r); } else { o.rect(x,y,w,h); }
+  o.fill();
+}
+function text(s,x,y,size,align){
+  o.fillStyle='#fff';
+  o.font=(size||8)+'px '+MONO;
+  o.textAlign=align||'left';
+  o.textBaseline='alphabetic';
+  o.fillText(s,x,y);
+  o.textAlign='left';
+}
+function frame(title){
+  if(title){ text(title,3,7,8); rect(0,9,W,1); }
+  for(let t=0;t<SCREENS.length;t++){
+    const cx=8+t*8;
+    if(t===tab) rect(cx-2,57,4,4); else rect(cx-1,58,2,2);
+  }
+}
+function flush(){
+  const img=o.getImageData(0,0,W,H), d=img.data;
+  for(let i=0;i<d.length;i+=4){
+    const on=(d[i]*0.3+d[i+1]*0.59+d[i+2]*0.11)>92;
+    d[i]=on?191:8; d[i+1]=on?227:10; d[i+2]=on?255:12; d[i+3]=255;
+  }
+  o.putImageData(img,0,0);
+  dctx.imageSmoothingEnabled=false;
+  dctx.clearRect(0,0,disp.width,disp.height);
+  dctx.drawImage(off,0,0,disp.width,disp.height);
+}
+const pad=n=>String(n).padStart(2,'0');
+
+/* ---------- state ---------- */
+let tab=0, t=0, mood=0, moodUntil=0;
+let gaze=0, gazeTarget=0, nextBlink=40, blinkFor=0;
+let playing=true, track=0, trackPos=42;
+let timerPreset=1, timerLeft=25*60, timerRunning=false;
+const PRESETS=[5*60,25*60,45*60];
+const TRACKS=[['Static Bloom','Longwave'],['Night Bus','Farrow'],['Copper Light','Ilio']];
+let dino={y:0,v:0,run:0,obs:[],score:0,dead:false,started:false};
+let game=null, pick=0, ans=0, ballUntil=0;
+const GAMES=[['dino','DINO RUNNER'],['ball','MAGIC 8 BALL']];
+const ANSWERS=['YES','NO','ASK LATER','OBVIOUSLY','DOUBT IT','CERTAIN'];
+
+/* ---------- screens ---------- */
+const SCREENS=[
+ {name:'FACE', desc:'Eyes that blink, drift and react to what the other screens know.', act:'B2 changes its mood', draw:drawFace},
+ {name:'WEATHER', desc:'Conditions now, today\u2019s range, and a clock big enough to read across the room.', act:'no action', draw:drawWeather},
+ {name:'CALENDAR', desc:'The next few events, and a popup that interrupts any screen when one is close.', act:'no action', draw:drawCalendar},
+ {name:'SPOTIFY', desc:'What is playing on your machine, with a progress bar.', act:'B2 plays or pauses, hold to skip', draw:drawMusic},
+ {name:'SYSTEM', desc:'CPU, memory and uptime for the PC it sits beside.', act:'no action', draw:drawSystem},
+ {name:'TIMER', desc:'Three presets, a countdown, and a jingle when it lands.', act:'B2 starts or pauses, hold to change preset', draw:drawTimer},
+ {name:'USAGE', desc:'How much of the current Claude usage window is gone.', act:'no action', draw:drawUsage},
+ {name:'GAMES', desc:'A menu holding the dino runner and a magic eight ball, loaded only when you open one.', act:'B2 plays, hold to switch game', draw:drawGames}
+];
+
+function drawFace(){
+  const now=new Date();
+  if(t>nextBlink){ blinkFor=5; nextBlink=t+120+Math.random()*220; }
+  if(blinkFor>0) blinkFor--;
+  if(t%90===0) gazeTarget=(Math.random()*8-4)|0;
+  gaze+=(gazeTarget-gaze)*0.12;
+  const g=Math.round(gaze);
+  const blink=blinkFor>0, sleepy=mood===2, happy=mood===1;
+  const ex=26+g, ey=happy?12:14, es=26;
+  [ex,ex+50].forEach(function(cx){
+    if(blink){ rrect(cx,ey+es/2-3,es,6,3,true); return; }
+    if(sleepy){ rrect(cx,ey+8,es,es-12,5,true); return; }
+    rrect(cx,ey,es,es,7,true);
+    rrect(cx+4,ey+4,6,6,2,false);
+    if(happy) erase(cx-1,ey+es-9,es+2,10);
+  });
+  rect(6,53,W-12,1);
+  text(pad(now.getHours())+':'+pad(now.getMinutes()),W-4,50,11,'right');
+  const days=['SUN','MON','TUE','WED','THU','FRI','SAT'];
+  text(days[now.getDay()]+' '+now.getDate(),4,50,8);
+  frame(null);
+}
+
+function drawWeather(){
+  frame('WEATHER');
+  const now=new Date();
+  text(pad(now.getHours())+':'+pad(now.getMinutes()),4,38,24);
+  const cx=104,cy=22;
+  rrect(cx-9,cy-6,12,12,6,true);
+  rrect(cx-2,cy,16,10,5,true);
+  rrect(cx+2,cy-4,10,10,5,true);
+  erase(cx-4,cy+11,26,4);
+  text('18\u00B0',W-4,50,11,'right');
+  text('PARTLY CLOUDY',4,50,8);
+  frame(null);
+}
+
+function drawMusic(){
+  frame('SPOTIFY');
+  const tr=TRACKS[track];
+  const label=tr[0]+'  \u2014  '+tr[1]+'      ';
+  o.font='8px '+MONO;
+  const tw=o.measureText(label).width;
+  const shift=playing?(t*0.35)%tw:0;
+  text(label+label,4-shift,24,8);
+  erase(0,15,3,13); erase(W-2,15,2,13);
+  if(playing){ rect(4,34,3,10); rect(10,34,3,10); }
+  else { o.beginPath(); o.moveTo(4,34); o.lineTo(14,39); o.lineTo(4,44); o.closePath(); o.fillStyle='#fff'; o.fill(); }
+  if(playing) trackPos=(trackPos+0.06)%100;
+  rect(22,38,100,2);
+  rect(22,36,Math.max(2,trackPos),6);
+  text(playing?'PLAYING':'PAUSED',W-4,50,8,'right');
+  frame(null);
+}
+
+function drawSystem(){
+  frame('SYSTEM');
+  const bars=[['CPU',26+18*Math.sin(t/70)+6*Math.sin(t/11)],['MEM',61+4*Math.sin(t/160)],['DSK',44]];
+  bars.forEach(function(b,i){
+    const y=14+i*11;
+    text(b[0],4,y+7,8);
+    rect(28,y+1,92,7);
+    erase(29,y+2,90,5);
+    rect(29,y+2,Math.max(1,b[1]*0.9),5);
+  });
+  text('UP 4D 02:15   ANGE-DESK',4,53,8);
+  frame(null);
+}
+
+function drawTimer(){
+  frame('TIMER');
+  if(timerRunning && t%60===0 && timerLeft>0) timerLeft--;
+  const m=Math.floor(timerLeft/60), s=timerLeft%60;
+  text(pad(m)+':'+pad(s),64,42,28,'center');
+  text(timerRunning?'RUNNING':(timerLeft===PRESETS[timerPreset]?'READY':'PAUSED'),4,52,8);
+  text(Math.round(PRESETS[timerPreset]/60)+' MIN',W-4,52,8,'right');
+  frame(null);
+}
+
+function drawUsage(){
+  frame('USAGE');
+  const p=62;
+  text('CLAUDE WINDOW',4,22,8);
+  rect(4,26,120,10);
+  erase(5,27,118,8);
+  rect(5,27,Math.round(118*p/100),8);
+  text(p+'%',4,48,10);
+  text('RESETS 16:40',W-4,48,8,'right');
+  frame(null);
+}
+
+function drawCalendar(){
+  frame('CALENDAR');
+  const rows=[['10:30','STANDUP'],['13:00','1:1 WITH SAM'],['16:15','LAB MEETING']];
+  rows.forEach(function(r,i){
+    const y=20+i*11;
+    if(i===0){ rect(2,y-7,124,10); erase(3,y-6,122,8); }
+    text(r[0],4,y,8); text(r[1],36,y,8);
+  });
+  text('IN 42 MIN',4,52,8);
+  frame(null);
+}
+
+function drawGames(){
+  if(game==='dino'){ drawDino(); return; }
+  if(game==='ball'){ drawEightball(); return; }
+  frame('GAMES');
+  GAMES.forEach(function(g,i){
+    const y=24+i*14;
+    if(i===pick){ rect(2,y-9,124,13); erase(3,y-8,122,11); text('>',5,y,8); }
+    text(g[1],18,y,8);
+  });
+  text('B2 PLAY \u00B7 HOLD SWITCH',4,52,8);
+  frame(null);
+}
+
+function drawEightball(){
+  frame('8 BALL');
+  const shaking=t<ballUntil;
+  const jitter=shaking?((t%3)-1):0;
+  o.beginPath();
+  o.moveTo(64+jitter,16); o.lineTo(92+jitter,46); o.lineTo(36+jitter,46);
+  o.closePath(); o.fillStyle='#fff'; o.fill();
+  if(!shaking){
+    const line=ANSWERS[ans];
+    erase(40+jitter,30,48,12);
+    text(line,64+jitter,39,8,'center');
+  }
+  text(shaking?'SHAKING':'B2 ASK AGAIN',4,52,8);
+  frame(null);
+}
+
+function drawDino(){
+  frame('DINO');
+  const ground=46;
+  rect(0,ground+8,W,1);
+  if(dino.started&&!dino.dead){
+    dino.v+=0.62; dino.y+=dino.v;
+    if(dino.y>0){ dino.y=0; dino.v=0; }
+    dino.score++;
+    if(dino.obs.length===0||dino.obs[dino.obs.length-1]<80) {
+      if(Math.random()<0.022) dino.obs.push(W+8);
+    }
+    dino.obs=dino.obs.map(function(x){return x-1.9;}).filter(function(x){return x>-8;});
+    dino.obs.forEach(function(x){
+      if(x<16&&x>2&&dino.y>-10) dino.dead=true;
+    });
+  }
+  const dy=ground+dino.y;
+  rect(6,dy,10,8); rect(14,dy-4,6,5); rect(19,dy-3,2,2); rect(7,dy+8,2,3); rect(12,dy+8,2,3);
+  dino.obs.forEach(function(x){ rect(x,ground+3,4,5); rect(x+1,ground,2,4); });
+  text('SCORE '+String(Math.floor(dino.score/3)).padStart(4,'0'),W-4,20,8,'right');
+  if(dino.dead) text('GAME OVER \u2014 B2',64,32,8,'center');
+  else if(!dino.started) text('B2 TO JUMP',64,32,8,'center');
+  frame(null);
+}
+
+/* ---------- loop ---------- */
+let last=0, reduced=window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+function loop(ts){
+  if(ts-last>33){
+    last=ts; t++;
+    if(moodUntil&&t>moodUntil){ mood=0; moodUntil=0; }
+    clear();
+    SCREENS[tab].draw();
+    flush();
+  }
+  if(!reduced) requestAnimationFrame(loop);
+}
+
+/* ---------- controls ---------- */
+function setTab(i){
+  tab=(i+SCREENS.length)%SCREENS.length;
+  document.querySelectorAll('#dots button').forEach(function(b,n){
+    b.setAttribute('aria-current',String(n===tab));
+  });
+  document.querySelectorAll('.screen-row').forEach(function(r,n){
+    r.setAttribute('aria-current',String(n===tab));
+  });
+  if(reduced) render();
+}
+function render(){ clear(); SCREENS[tab].draw(); flush(); }
+function b1Tap(){ if(game){ game=null; return; } setTab(tab+1); }
+function b1Hold(){ game=null; setTab(0); }
+function b2Tap(){
+  const n=SCREENS[tab].name;
+  if(n==='FACE'){ mood=(mood+1)%3; moodUntil=t+150; }
+  else if(n==='SPOTIFY'){ playing=!playing; }
+  else if(n==='TIMER'){ timerRunning=!timerRunning; }
+  else if(n==='GAMES'){
+    if(!game){ game=GAMES[pick][0]; if(game==='ball'){ ballUntil=t+18; } return; }
+    if(game==='ball'){ ans=(ans+1+Math.floor(Math.random()*4))%ANSWERS.length; ballUntil=t+18; }
+    else if(dino.dead||!dino.started){ dino={y:0,v:0,run:0,obs:[],score:0,dead:false,started:true}; }
+    else if(dino.y===0){ dino.v=-6.6; }
+  }
+}
+function b2Hold(){
+  const n=SCREENS[tab].name;
+  if(n==='SPOTIFY'){ track=(track+1)%TRACKS.length; trackPos=0; playing=true; }
+  else if(n==='TIMER'){ timerPreset=(timerPreset+1)%PRESETS.length; timerLeft=PRESETS[timerPreset]; timerRunning=false; }
+  else if(n==='GAMES'&&!game){ pick=(pick+1)%GAMES.length; }
+  else b2Tap();
+}
+function wire(el,tap,hold){
+  let timer=null, held=false;
+  const fire=function(fn){ fn(); if(reduced) render(); };
+  function down(e){
+    if(e.type==='keydown'&&e.repeat) return;
+    held=false; el.dataset.down='true';
+    timer=setTimeout(function(){ held=true; fire(hold); },520);
+  }
+  function up(){
+    clearTimeout(timer); el.dataset.down='false';
+    if(!held) fire(tap);
+  }
+  el.addEventListener('pointerdown',function(e){e.preventDefault(); down(e);});
+  el.addEventListener('pointerup',function(e){e.preventDefault(); up();});
+  el.addEventListener('pointerleave',function(){ clearTimeout(timer); el.dataset.down='false'; });
+  el.addEventListener('keydown',function(e){ if(e.key===' '||e.key==='Enter'){ e.preventDefault(); down(e);} });
+  el.addEventListener('keyup',function(e){ if(e.key===' '||e.key==='Enter'){ e.preventDefault(); up(); } });
+}
+wire(document.getElementById('b1'),b1Tap,b1Hold);
+wire(document.getElementById('b2'),b2Tap,b2Hold);
+
+/* dots + screen list */
+const dots=document.getElementById('dots');
+const list=document.getElementById('screenList');
+SCREENS.forEach(function(s,i){
+  const d=document.createElement('button');
+  d.type='button'; d.title=s.name;
+  d.setAttribute('aria-label','Show the '+s.name+' screen');
+  d.addEventListener('click',function(){ setTab(i); });
+  dots.appendChild(d);
+
+  const row=document.createElement('button');
+  row.type='button'; row.className='screen-row';
+  row.innerHTML='<span class="row-name">'+s.name+'</span>'+
+                '<span class="row-desc">'+s.desc+'</span>'+
+                '<span class="row-act">'+s.act+'</span>';
+  row.addEventListener('click',function(){
+    setTab(i);
+    document.querySelector('.device').scrollIntoView({behavior:reduced?'auto':'smooth',block:'center'});
+  });
+  list.appendChild(row);
+});
+
+setTab(0);
+document.fonts&&document.fonts.ready.then(render);
+if(reduced){ render(); } else { requestAnimationFrame(loop); }
+})();
+</script>
+</body>
+</html>
