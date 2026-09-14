@@ -100,15 +100,23 @@ are sitting right there is just a dark rectangle.
   <img src="docs/assets/wiring.svg" alt="Mimic wiring map" width="760">
 </p>
 
-| Signal | Pico W pin | Goes to |
-| --- | --- | --- |
-| I2C data | `GP0` — physical pin 1 | OLED `SDA` |
-| I2C clock | `GP1` — physical pin 2 | OLED `SCL` |
-| Ground | `GND` — physical pin 3 | OLED `GND` |
-| 3V3 out | `3V3` — physical pin 36 | OLED `VCC`, buzzer `VCC` |
-| Button 1 | `GP2` — physical pin 4 | Button 1 leg A (leg B to any `GND`) |
-| Button 2 | `GP3` — physical pin 5 | Button 2 leg A (leg B to any `GND`) |
-| Buzzer | `GP20` — physical pin 26 | Buzzer `SIG` |
+| Signal | Pico W pin | Breadboard hole | Goes to |
+| --- | --- | --- | --- |
+| I2C data | `GP0` — pin 1 | 1a | OLED `SDA` |
+| I2C clock | `GP1` — pin 2 | 2a | OLED `SCL` |
+| Ground | `GND` — pin 38 | 3j | OLED `GND` |
+| 3V3 out | `3V3` — pin 36 | 5j | OLED `VCC` |
+| Button 1 | `GP2` — pin 4 | 4a | Button 1 leg A |
+| Ground | `GND` — pin 3 | 3a | Button 1 leg B |
+| Button 2 | `GP3` — pin 5 | 5a | Button 2 leg A |
+| Ground | `GND` — pin 8 | 8a | Button 2 leg B |
+| Buzzer signal | `GP15` — pin 20 | 20a | Buzzer `SIG` |
+| 5V | `VBUS` — pin 40 | 1j | Buzzer `VCC` |
+| Ground | `GND` — pin 18 | 18a | Buzzer `GND` |
+
+The Pico straddles the channel of a half-size breadboard, so row *n* on the `a`
+side is physical pin *n*, and row *n* on the `j` side is pin *41 − n*. The buzzer
+runs from `VBUS` rather than `3V3`; everything else is on the 3V3 rail.
 
 Breadboard positions for this exact build are in
 [`hardware/README.md`](hardware/README.md).

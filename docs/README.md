@@ -17,7 +17,7 @@ in `.github/workflows/pages.yml` then publishes `docs/` on every push to `main`.
 
 ## Before the first push
 
-Replace `YOUR-USERNAME` in these places:
+Replace `DimAnge` in these places:
 
 - `docs/index.html` — the `og:url` and `og:image` tags, three GitHub links
 - `README.md` — the site link and the footer link

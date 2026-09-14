@@ -248,18 +248,19 @@ footer img{height:26px; width:auto; opacity:.8}
     </table>
 
     <figure>
-      <img src="assets/wiring.svg" alt="Wiring map: OLED SDA to GP0, SCL to GP1, ground to pin 3 and 3V3 to pin 36; button 1 to GP2 and button 2 to GP3 with their other legs to ground; buzzer signal to GP20 with power and ground.">
-      <figcaption>Signal map, not to scale. Physical pin numbers are on the board.</figcaption>
+      <img src="assets/wiring.svg" alt="Wiring map: OLED SDA to GP0, SCL to GP1, ground to pin 38 and 3V3 to pin 36; button 1 to GP2 and button 2 to GP3 with their other legs to ground pins 3 and 8; buzzer signal to GP15 with 5V from VBUS and ground on pin 18.">
+      <figcaption>Signal map, not to scale. Each row gives the GPIO name, the physical pin and the breadboard hole.</figcaption>
     </figure>
 
     <table class="pinmap">
-      <tr><td><span class="swatch" style="background:var(--w-sda)"></span></td><td>OLED SDA</td><td>GP0 · pin 1</td></tr>
-      <tr><td><span class="swatch" style="background:var(--w-scl)"></span></td><td>OLED SCL</td><td>GP1 · pin 2</td></tr>
-      <tr><td><span class="swatch" style="background:var(--w-gnd)"></span></td><td>OLED GND</td><td>GND · pin 3</td></tr>
-      <tr><td><span class="swatch" style="background:var(--w-vcc)"></span></td><td>OLED VCC</td><td>3V3 OUT · pin 36</td></tr>
-      <tr><td><span class="swatch" style="background:var(--w-btn)"></span></td><td>Button 1</td><td>GP2 · pin 4, other leg to GND</td></tr>
-      <tr><td><span class="swatch" style="background:var(--w-btn)"></span></td><td>Button 2</td><td>GP3 · pin 5, other leg to GND</td></tr>
-      <tr><td><span class="swatch" style="background:var(--w-buz)"></span></td><td>Buzzer signal</td><td>GP20 · pin 26, plus 3V3 and GND</td></tr>
+      <tr><td><span class="swatch" style="background:var(--w-sda)"></span></td><td>OLED SDA</td><td>GP0 · pin 1 · hole 1a</td></tr>
+      <tr><td><span class="swatch" style="background:var(--w-scl)"></span></td><td>OLED SCL</td><td>GP1 · pin 2 · hole 2a</td></tr>
+      <tr><td><span class="swatch" style="background:var(--w-gnd)"></span></td><td>OLED GND</td><td>GND · pin 38 · hole 3j</td></tr>
+      <tr><td><span class="swatch" style="background:var(--w-vcc)"></span></td><td>OLED VCC</td><td>3V3 OUT · pin 36 · hole 5j</td></tr>
+      <tr><td><span class="swatch" style="background:var(--w-btn)"></span></td><td>Button 1</td><td>GP2 · pin 4 · hole 4a, other leg to GND pin 3</td></tr>
+      <tr><td><span class="swatch" style="background:var(--w-btn)"></span></td><td>Button 2</td><td>GP3 · pin 5 · hole 5a, other leg to GND pin 8</td></tr>
+      <tr><td><span class="swatch" style="background:var(--w-buz)"></span></td><td>Buzzer signal</td><td>GP15 · pin 20 · hole 20a</td></tr>
+      <tr><td><span class="swatch" style="background:var(--w-vcc)"></span></td><td>Buzzer VCC</td><td>VBUS 5V · pin 40 · hole 1j</td></tr>
     </table>
   </div>
 </section>

@@ -7,17 +7,21 @@ trimmed off so it drops into the case tray.
 
 | Component | Connection | Breadboard hole |
 | --- | --- | --- |
-| OLED | `SDA` -> `GP0` | — |
-| OLED | `SCL` -> `GP1` | — |
-| OLED | `GND` | j3 |
-| OLED | `VCC` | i5 |
-| Button 1 | `GP2` | a4 |
-| Button 1 | `GND` | a3 |
-| Button 2 | `GP3` | a5 |
-| Button 2 | `GND` | a8 |
-| Buzzer | `SIG` -> `GP20` | a20 |
-| Buzzer | `GND` | a18 |
-| Buzzer | `VCC` | i5 |
+| OLED | `SDA` -> `GP0`, pin 1 | 1a |
+| OLED | `SCL` -> `GP1`, pin 2 | 2a |
+| OLED | `GND`, pin 38 | 3j |
+| OLED | `VCC` -> `3V3`, pin 36 | 5j |
+| Button 1 | leg A -> `GP2`, pin 4 | 4a |
+| Button 1 | leg B -> `GND`, pin 3 | 3a |
+| Button 2 | leg A -> `GP3`, pin 5 | 5a |
+| Button 2 | leg B -> `GND`, pin 8 | 8a |
+| Buzzer | `SIG` -> `GP15`, pin 20 | 20a |
+| Buzzer | `VCC` -> `VBUS`, 5V, pin 40 | 1j |
+| Buzzer | `GND`, pin 18 | 18a |
+
+Row *n* on the `a` side of the channel is physical pin *n*; row *n* on the `j`
+side is pin *41 − n*. That is the whole trick to reading this table against the
+board.
 
 Wire colours used in the diagrams: red for 3V3, dark grey for ground, blue for
 I2C data, yellow for I2C clock, green for button inputs, purple for the buzzer
