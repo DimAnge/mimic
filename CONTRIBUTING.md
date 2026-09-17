@@ -24,7 +24,8 @@ Issues and pull requests are welcome anyway, especially these:
 ## Style
 
 - CircuitPython, standard library plus the Adafruit display stack. The bridge is
-  standard library only, so it runs anywhere with Python and no pip install.
+  standard library plus `icalendar` and `recurring-ical-events`; keep that list
+  short, and keep new dependencies out of the board code entirely.
 - No blocking calls in the main loop. No `time.sleep()` for debouncing.
 - The screen is monochrome. If an idea needs colour to work, it does not work.
 - Comments explain why, not what.

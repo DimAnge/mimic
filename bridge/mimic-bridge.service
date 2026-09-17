@@ -5,8 +5,8 @@ Wants=network-online.target
 
 [Service]
 Type=simple
-# Adjust the path to wherever you cloned the repository.
-ExecStart=/usr/bin/python3 %h/projects/mimic/bridge/bridge.py
+# Adjust both paths: the virtualenv, and wherever you cloned the repository.
+ExecStart=%h/desky-venv/bin/python %h/projects/mimic/bridge/bridge.py
 WorkingDirectory=%h/projects/mimic/bridge
 Restart=on-failure
 RestartSec=5

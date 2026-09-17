@@ -341,6 +341,7 @@ boot_mark("wifi connected")
 pool = adafruit_connection_manager.get_radio_socketpool(wifi.radio)
 ssl_context = adafruit_connection_manager.get_radio_ssl_context(wifi.radio)
 requests = adafruit_requests.Session(pool, ssl_context)
+time.sleep(0.3)          # let the radio finish settling before the first socket
 
 
 def online():
@@ -394,17 +395,23 @@ def apply_clock(parts, now):
 def get_time_https():
     """Fallback only. A TLS handshake here costs several seconds at boot."""
     print("Syncing time over HTTPS...")
+    r = None
     try:
         url = "https://timeapi.io/api/Time/current/zone?timeZone=Europe/Athens"
         r = requests.get(url)
         d = r.json()
-        r.close()
         return apply_clock([d["year"], d["month"], d["day"],
                             d["hour"], d["minute"], d["seconds"]],
                            time.monotonic())
     except Exception as e:
         print("Time Error:", e)
         return False
+    finally:
+        if r is not None:
+            try:
+                r.close()
+            except Exception:
+                pass
 
 
 weather_temp = "--.-C"
@@ -419,15 +426,21 @@ def fetch_weather(now):
     global weather_temp, weather_desc, weather_icon, weather_mood
     global last_weather_fetch
     last_weather_fetch = now
+    r = None
     try:
         url = (f"http://api.openweathermap.org/data/2.5/weather"
                f"?q={CITY}&appid={api_key}&units={UNITS}")
         r = requests.get(url)
         d = r.json()
-        r.close()
     except Exception:
         weather_temp, weather_desc, weather_icon = "Net Err", "retry later", ""
         return
+    finally:
+        if r is not None:
+            try:
+                r.close()
+            except Exception:
+                pass
 
     if "main" not in d:
         weather_temp, weather_desc, weather_icon = "Key Err", "check token", ""
@@ -487,6 +500,37 @@ cal_index = 0
 last_status_fetch = -999.0
 
 
+def bridge_get(url, attempts=3):
+    """GET with retries, releasing the socket whatever happens.
+
+    The first socket after WiFi association often comes back EINPROGRESS --
+    the radio is still finishing the connection. One retry almost always
+    clears it, and it's far cheaper than falling through to the HTTPS path.
+
+    The finally matters more than the retry: the connection pool is small,
+    and a response that is never closed is a socket that never comes back.
+    Leak a few and every later request fails too, which looks like the
+    bridge going permanently offline after one transient hiccup.
+    """
+    for attempt in range(attempts):
+        r = None
+        try:
+            r = requests.get(url, timeout=5)
+            return r.json()
+        except Exception as exc:
+            if attempt + 1 < attempts:
+                time.sleep(0.4)
+            else:
+                print("Bridge fetch failed:", exc)
+        finally:
+            if r is not None:
+                try:
+                    r.close()
+                except Exception:
+                    pass
+    return None
+
+
 def fetch_status(now):
     """One GET gets usage, PC stats, calendar and Spotify."""
     global status_ok, usage_ok, last_status_fetch, usage_alerted
@@ -504,12 +548,9 @@ def fetch_status(now):
         usage_ok = False
         face_pct_label.text = ""
         return
-    try:
-        r = requests.get(BRIDGE_URL, timeout=5)
-        d = r.json()
-        r.close()
-    except Exception as exc:
-        print("Bridge fetch failed:", exc)
+
+    d = bridge_get(BRIDGE_URL)
+    if d is None:
         status_ok = False
         usage_ok = False
         face_pct_label.text = ""
@@ -570,16 +611,13 @@ def spotify_command(action):
     """Fire a control command at the bridge. Returns True on success."""
     if not online():
         return False
-    try:
-        r = requests.get(f"{BRIDGE_BASE}/spotify/{action}", timeout=5)
-        d = r.json()
-        r.close()
-        if not d.get("ok"):
-            sp_state_label.text = fit(str(d.get("error") or "failed"))
-        return bool(d.get("ok"))
-    except Exception as exc:
-        print("Spotify command failed:", exc)
+    d = bridge_get(f"{BRIDGE_BASE}/spotify/{action}")
+    if d is None:
+        sp_state_label.text = "no bridge"
         return False
+    if not d.get("ok"):
+        sp_state_label.text = fit(str(d.get("error") or "failed"))
+    return bool(d.get("ok"))
 
 
 def render_spotify():
@@ -652,7 +690,7 @@ def render_calendar():
         cal_when_label.text = ""
         cal_line1_label.text = "Nothing scheduled"
         cal_line2_label.text = ""
-        cal_in_label.text = "next 14 hours"
+        cal_in_label.text = "next 7 days"
         return
 
     item = events[cal_index]

@@ -28,7 +28,17 @@ Eight screens, two buttons, one buzzer. No touchscreen, no app, no cloud account
 on the device.
 
 <p align="center">
-  <img src="docs/assets/screens.png" alt="The eight Mimic screens: face, weather, calendar, Spotify, system, timer, usage and games" width="620">
+  <img src="docs/assets/photos/hero.jpg" alt="Mimic on a desk: a red and black printed case holding an OLED showing the games menu, with two large round buttons in front" width="760">
+</p>
+
+<p align="center">
+  <img src="docs/assets/screens.png" alt="All nine Mimic screens: face, weather, calendar, Spotify, system, usage, games, dino and the magic eight ball" width="760">
+</p>
+
+<p align="center">
+  <sub>Screens are real frames, not mockups. Most were dumped over USB by
+  <code>screenshot.py</code>; the weather, usage and games panels were recovered
+  from close-up photographs and thresholded back to two colours.</sub>
 </p>
 
 ## Why this exists
@@ -70,10 +80,28 @@ the current tab needs.
 | `SYSTEM` | CPU, memory, disk and uptime of the PC beside it | — |
 | `TIMER` | Countdown with three presets and a jingle on zero | Start / pause, hold to change preset |
 | `USAGE` | How much of the current Claude usage window has been spent | — |
-| `GAMES` | A menu holding the dino runner and a magic eight ball | Play, hold to switch game |
+| `GAMES` | A menu holding the dino runner and a magic eight ball | Tap picks the game, hold starts it |
 
 The two games live in `dino.py` and `eightball.py` and are imported lazily, the
 first time you open one, so they cost nothing until they are used.
+
+### Screenshots
+
+The SSD1306 cannot be read back — `fill_row` needs a 16-bit colourspace — so
+`screenshot.py` walks `display.root_group` and redraws it into a 1-bit buffer,
+then prints it over USB. Press `s` in the serial console to capture whatever is
+on screen, and `tools/shot.py` turns the dump into a PNG:
+
+```bash
+python3 tools/shot.py --paste /tmp/dumps.txt --bezel \
+  --names face,calendar,spotify,system,dino,eightball
+```
+
+Most screen images in this README came out of that. Three of them would not sit
+still long enough to capture — weather, usage and the games menu — so they were
+photographed close up instead and put back through `tools/make_photos.py`, which
+finds the glass in the photo, squares it to 128 x 64 and thresholds it back to
+two colours. Close enough that you cannot tell which is which above.
 
 A meeting popup interrupts any tab when the next calendar event is close.
 
@@ -167,8 +195,8 @@ file.
 ## The bridge
 
 The Pico has no business holding Spotify tokens or a private calendar URL, so it
-doesn't. `bridge/bridge.py` is a standard-library HTTP server that runs on the PC,
-listens on port 8080, and hands back plain numbers. The Pico polls it.
+doesn't. `bridge/bridge.py` is a small HTTP server that runs on the PC, listens
+on port 8080, and hands back plain numbers. The Pico polls it.
 
 `bridge/spotify.py` is both the one-time login (`python3 spotify.py`, which runs
 the PKCE flow and stores the refresh token) and the module the bridge imports.
@@ -185,6 +213,21 @@ every change.
 
 Spotify uses PKCE OAuth; the refresh token stays in the bridge's config file on
 the PC. The calendar is read from the private iCal URL and parsed PC-side.
+
+It needs two packages for the calendar — everything else is standard library:
+
+```bash
+python3 -m venv ~/desky-venv
+~/desky-venv/bin/pip install icalendar recurring-ical-events
+```
+
+The calendar's private iCal URL lives in `~/.desky-ical-url` (or the
+`DESKY_ICAL_URL` environment variable), never in the repository:
+
+```bash
+echo 'https://your-private-ical-url' > ~/.desky-ical-url
+chmod 600 ~/.desky-ical-url
+```
 
 Install it as a user service so it comes back after a reboot:
 
@@ -256,7 +299,7 @@ mimic/
 ├── screenshot.py           # framebuffer dumper, see tools/shot.py
 ├── settings.toml.example   # Wi-Fi and bridge config template
 ├── bridge/
-│   ├── bridge.py           # PC-side HTTP service, standard library only
+│   ├── bridge.py           # PC-side HTTP service
 │   ├── spotify.py          # one-time PKCE login, and the bridge's module
 │   ├── cal_debug.py        # calendar feed troubleshooting
 │   └── mimic-bridge.service
@@ -299,8 +342,19 @@ barrel do the gripping.
 system Python with an older version, and point `pipx` at the real one, for
 example `/usr/bin/python3.12`.
 
+**Everything reads zero, or one section never populates.** Check `BRIDGE_HOST`
+in `settings.toml` against `hostname -I` on the PC. A wrong address fails
+quietly: the Pico asks nobody and gets nothing back.
+
 **The screen shows stale numbers.** The bridge is not running, or the PC is
 asleep. `systemctl --user status mimic-bridge`.
+
+**The calendar says nothing is scheduled when something is.** Check the window
+before the parser: the bridge only reports events inside the next few hours, so
+a meeting tomorrow morning correctly shows as nothing tonight. Then run
+`python3 bridge/cal_debug.py`, which prints which calendar the feed belongs to
+and every occurrence it can see. All-day entries are ignored on purpose —
+birthdays and public holidays are not meetings and should not raise a popup.
 
 ## Roadmap
 
@@ -321,5 +375,5 @@ discs are other people's models — see [The case](#the-case) for links and
 licences.
 
 The logo, the wiring diagram, the social image and the project site were made
-with help from Claude (Anthropic). The hardware, the code and the mistakes are
+with help from Claude (Anthropic). The hardware and the mistakes are
 mine.

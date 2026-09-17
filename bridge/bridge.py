@@ -34,7 +34,10 @@ PORT = 8080
 USAGE_CACHE_SECONDS = 60      # ccusage is slow-ish, don't hammer it
 SYSTEM_CACHE_SECONDS = 4      # /proc is cheap
 CALENDAR_CACHE_SECONDS = 300  # Google rate-limits the iCal endpoint
-LOOK_AHEAD_HOURS = 14
+
+# The tab lists the next few events, so this needs to span days, not hours.
+# The popup is driven by minutes-until-start and doesn't care how wide it is.
+LOOK_AHEAD_HOURS = 24 * 7
 
 # Override with CCUSAGE_BIN=/full/path/to/ccusage if it isn't on PATH
 CCUSAGE = os.environ.get("CCUSAGE_BIN") or shutil.which("ccusage")

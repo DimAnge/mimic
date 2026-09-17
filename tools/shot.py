@@ -3,8 +3,8 @@
 
 Two ways in:
 
-    python3 tools/shot.py /dev/ttyACM0          # listen on the serial port
-    python3 tools/shot.py --paste dump.txt      # a console dump you saved
+    python3 tools/shot.py --paste dump.txt      # one or many dumps from a console log
+    python3 tools/shot.py /dev/ttyACM0          # listen on the serial port instead
 
 Options:
 
@@ -20,6 +20,7 @@ Needs Pillow. pyserial only for the serial mode.
 import argparse
 import datetime
 import os
+import re
 import sys
 
 from PIL import Image, ImageDraw
@@ -55,13 +56,35 @@ def read_serial(port, baud=115200, timeout=30):
     sys.exit("Timed out. Is code.py calling screenshot.requested()?")
 
 
+DIMS = re.compile(r"^(\d+)\s+(\d+)$")
+HEXLINE = re.compile(r"^[0-9a-fA-F]+$")
+
+
+def _clean(block):
+    """Keep only the size line and the hex, ignoring console noise."""
+    lines, dims = [], None
+    for raw in block.splitlines():
+        line = raw.strip().replace("\r", "")
+        line = re.sub(r"\x1b\[[0-9;]*[A-Za-z]", "", line)
+        if dims is None and DIMS.match(line):
+            dims = line
+        elif dims is not None and HEXLINE.match(line):
+            lines.append(line)
+    return [dims] + lines if dims else []
+
+
 def read_paste(path):
+    """Every dump in the file, in order. A tio log can hold a whole session."""
     text = open(path, encoding="utf-8", errors="replace").read()
-    if START in text:
-        text = text.split(START, 1)[1]
-    if END in text:
-        text = text.split(END, 1)[0]
-    return [l.strip() for l in text.splitlines() if l.strip()]
+    blocks = []
+    for chunk in text.split(START)[1:]:
+        block = chunk.split(END, 1)[0]
+        cleaned = _clean(block)
+        if cleaned:
+            blocks.append(cleaned)
+    if not blocks:
+        sys.exit("No dump found in %s. Look for the START and END markers." % path)
+    return blocks
 
 
 def decode(lines):
@@ -107,30 +130,43 @@ def main():
     p.add_argument("port", nargs="?", help="serial port, e.g. /dev/ttyACM0")
     p.add_argument("--paste", help="a saved console dump instead of a live port")
     p.add_argument("--out", default="docs/assets/shots")
-    p.add_argument("--name")
+    p.add_argument("--name", help="base filename when there is one dump")
+    p.add_argument("--names", help="comma-separated names, in capture order: "
+                                   "face,weather,calendar,spotify,system,timer,usage,games")
     p.add_argument("--scale", type=int, default=4)
     p.add_argument("--bezel", action="store_true")
     p.add_argument("--raw", action="store_true")
     a = p.parse_args()
 
     if a.paste:
-        lines = read_paste(a.paste)
+        blocks = read_paste(a.paste)
     elif a.port:
-        lines = read_serial(a.port)
+        blocks = [read_serial(a.port)]
     else:
         p.error("give a serial port or --paste FILE")
 
-    img = colourise(decode(lines), raw=a.raw)
-    if a.scale > 1:
-        img = img.resize((img.width * a.scale, img.height * a.scale), Image.NEAREST)
-    if a.bezel:
-        img = bezel(img, pad=a.scale * 4, radius=a.scale * 4)
-
     os.makedirs(a.out, exist_ok=True)
-    name = a.name or datetime.datetime.now().strftime("shot-%Y%m%d-%H%M%S")
-    path = os.path.join(a.out, name + ".png")
-    img.save(path)
-    print("wrote", path, img.size)
+    base = a.name or datetime.datetime.now().strftime("shot-%Y%m%d-%H%M%S")
+    names = [n.strip() for n in a.names.split(",")] if a.names else []
+
+    for i, lines in enumerate(blocks):
+        img = colourise(decode(lines), raw=a.raw)
+        if a.scale > 1:
+            img = img.resize((img.width * a.scale, img.height * a.scale), Image.NEAREST)
+        if a.bezel:
+            img = bezel(img, pad=a.scale * 4, radius=a.scale * 4)
+        if i < len(names):
+            name = names[i]
+        elif len(blocks) > 1:
+            name = "%s-%d" % (base, i + 1)
+        else:
+            name = base
+        path = os.path.join(a.out, name + ".png")
+        img.save(path)
+        print("wrote", path, img.size)
+
+    if len(blocks) > 1:
+        print("%d screens captured" % len(blocks))
 
 
 if __name__ == "__main__":

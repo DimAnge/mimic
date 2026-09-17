@@ -35,7 +35,9 @@ Then set the social image: Settings → General → Social preview → upload
 | `wordmark.svg` | Type only |
 | `social-preview.png` | 1280×640 card for GitHub, link previews |
 | `wiring.svg`, `wiring.png` | The wiring map |
-| `screens.png` | Contact sheet of the seven screens |
+| `screens.png` | Contact sheet, built by `tools/make_sheet.py` from real captures |
+| `shots/` | Real screen captures from the device |
+| `photos/` | Device photographs, resized by `tools/make_photos.py` |
 | `classic/` | The first identity: rounded case, glowing pixel eyes, blue-white screen |
 | `alt/` | The two directions not chosen — stamp and sketch, see `alt/compare.png` |
 
@@ -71,8 +73,14 @@ python3 tools/shot.py /dev/ttyACM0 --bezel        # live, press "s" in the conso
 python3 tools/shot.py --paste dump.txt --bezel    # from a saved console dump
 ```
 
-Real dumps drop into `docs/assets/shots/` and can replace the simulated panels in
-`screens.png`.
+Dumps land in `docs/assets/shots/`. Rebuild the contact sheet from them with:
+
+```bash
+python3 tools/make_sheet.py FACE=docs/assets/shots/face.png \
+  CALENDAR=docs/assets/shots/calendar.png SPOTIFY=docs/assets/shots/spotify.png \
+  SYSTEM=docs/assets/shots/system.png DINO=docs/assets/shots/dino.png \
+  "8 BALL=docs/assets/shots/eightball.png"
+```
 
 ## Colours
 

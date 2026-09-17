@@ -134,6 +134,17 @@ section > .wrap > p.intro{margin-top:14px; color:#23272B}
   .row-act{white-space:normal}
 }
 
+/* real captures */
+.photo{margin:30px 0 0}
+.photo img{width:100%; height:auto; display:block; border-radius:6px; border:1px solid var(--rule)}
+.photo figcaption{font-family:var(--mono); font-size:12px; color:var(--ink-2); margin-top:10px; max-width:64ch}
+
+.shots{display:grid; gap:20px; margin-top:32px;
+       grid-template-columns:repeat(auto-fit,minmax(min(100%,270px),1fr))}
+.shots figure{margin:0}
+.shots img{width:100%; height:auto; display:block; border:0; background:none; border-radius:4px}
+.shots figcaption{font-family:var(--mono); font-size:11.5px; color:var(--ink-2); margin-top:8px; letter-spacing:.06em}
+
 /* parts + wiring */
 .parts{width:100%; border-collapse:collapse; margin-top:28px; font-size:15px}
 .parts th,.parts td{text-align:left; padding:11px 12px 11px 0; border-bottom:1px solid var(--rule); vertical-align:top}
@@ -186,6 +197,7 @@ footer img{height:26px; width:auto; opacity:.8}
   <img src="assets/logo.svg" alt="Mimic">
   <nav>
     <a href="#screens">Screens</a>
+    <a class="opt" href="#real">Captures</a>
     <a href="#parts">Parts</a>
     <a href="#build">Build</a>
     <a class="opt" href="#bridge">Bridge</a>
@@ -227,6 +239,28 @@ footer img{height:26px; width:auto; opacity:.8}
     <div class="head"><h2>Eight screens, two buttons</h2><span>tap a row to send it to the screen</span></div>
     <p class="intro prose">One button walks the tabs and goes home when you hold it. The other does whatever the current screen needs. Nothing is more than two presses away.</p>
     <div class="screens" id="screenList"></div>
+  </div>
+</section>
+
+<section id="real">
+  <div class="wrap">
+    <div class="head"><h2>The real thing</h2><span>captured from the device, not photographed</span></div>
+    <p class="intro prose">The panel above is a simulation, so it can be interactive. This is the object, and these are its actual pixels — dumped over USB by <code>screenshot.py</code> and rebuilt on the PC, which is the only way to get a clean picture off a lit OLED.</p>
+    <figure class="photo">
+      <img src="assets/photos/hero.jpg" alt="Mimic on a desk: a red and black printed case holding an OLED showing the games menu, with two large round buttons in front">
+      <figcaption>Printed in red and black PLA. The stand and the button discs are MakerWorld models; the tray, lid and spacer are the custom parts.</figcaption>
+    </figure>
+    <div class="shots">
+      <figure><img src="assets/shots/weather.png" alt="The weather screen: a large clock, temperature and a rain icon"><figcaption>weather</figcaption></figure>
+      <figure><img src="assets/shots/usage.png" alt="The usage screen showing session and weekly percentages"><figcaption>usage</figcaption></figure>
+      <figure><img src="assets/shots/games.png" alt="The games menu listing Dino Run and Magic 8-Ball"><figcaption>games</figcaption></figure>
+      <figure><img src="assets/shots/face.png" alt="The face screen: clock, battery of tab dots, two eyes and the date"><figcaption>face</figcaption></figure>
+      <figure><img src="assets/shots/calendar.png" alt="The calendar screen showing nothing scheduled in the next 14 hours"><figcaption>calendar</figcaption></figure>
+      <figure><img src="assets/shots/spotify.png" alt="The Spotify screen showing a track, artist and progress bar"><figcaption>spotify</figcaption></figure>
+      <figure><img src="assets/shots/system.png" alt="The system screen showing CPU, RAM, disk and uptime"><figcaption>system</figcaption></figure>
+      <figure><img src="assets/shots/dino.png" alt="The dino runner mid-game"><figcaption>dino</figcaption></figure>
+      <figure><img src="assets/shots/eightball.png" alt="The magic eight ball waiting for a question"><figcaption>8 ball</figcaption></figure>
+    </div>
   </div>
 </section>
 
@@ -326,7 +360,7 @@ tio /dev/ttyACM0   <span class="c"># watch it boot</span></code></pre>
 
 <section id="bridge">
   <div class="wrap">
-    <div class="head"><h2>The bridge</h2><span>bridge.py, standard library only</span></div>
+    <div class="head"><h2>The bridge</h2><span>bridge.py, running on your own machine</span></div>
     <p class="intro prose">A Pico W has no business holding your Spotify tokens or your calendar URL. So it doesn't. A small HTTP server on your PC does the talking and hands Mimic plain numbers over your own network.</p>
     <div class="cols">
       <div class="col">
@@ -337,7 +371,7 @@ tio /dev/ttyACM0   <span class="c"># watch it boot</span></code></pre>
       <div class="col">
         <span class="tag">GET /next</span>
         <h3>The meeting popup</h3>
-        <p>The bridge parses your calendar's private iCal feed and returns only the next event and its start time.</p>
+        <p>The bridge parses your calendar's private iCal feed and returns only the next event and its start time. All-day entries are ignored — birthdays are not meetings.</p>
       </div>
       <div class="col">
         <span class="tag">GET /now</span>
@@ -452,7 +486,7 @@ const SCREENS=[
  {name:'SYSTEM', desc:'CPU, memory and uptime for the PC it sits beside.', act:'no action', draw:drawSystem},
  {name:'TIMER', desc:'Three presets, a countdown, and a jingle when it lands.', act:'B2 starts or pauses, hold to change preset', draw:drawTimer},
  {name:'USAGE', desc:'How much of the current Claude usage window is gone.', act:'no action', draw:drawUsage},
- {name:'GAMES', desc:'A menu holding the dino runner and a magic eight ball, loaded only when you open one.', act:'B2 plays, hold to switch game', draw:drawGames}
+ {name:'GAMES', desc:'A menu holding the dino runner and a magic eight ball, loaded only when you open one.', act:'B2 picks, hold to start', draw:drawGames}
 ];
 
 function drawFace(){
@@ -567,7 +601,7 @@ function drawGames(){
     if(i===pick){ rect(2,y-9,124,13); erase(3,y-8,122,11); text('>',5,y,8); }
     text(g[1],18,y,8);
   });
-  text('B2 PLAY \u00B7 HOLD SWITCH',4,52,8);
+  text('TAP PICK \u00B7 HOLD START',4,52,8);
   frame(null);
 }
 
@@ -645,7 +679,7 @@ function b2Tap(){
   else if(n==='SPOTIFY'){ playing=!playing; }
   else if(n==='TIMER'){ timerRunning=!timerRunning; }
   else if(n==='GAMES'){
-    if(!game){ game=GAMES[pick][0]; if(game==='ball'){ ballUntil=t+18; } return; }
+    if(!game){ pick=(pick+1)%GAMES.length; return; }   // tap picks
     if(game==='ball'){ ans=(ans+1+Math.floor(Math.random()*4))%ANSWERS.length; ballUntil=t+18; }
     else if(dino.dead||!dino.started){ dino={y:0,v:0,run:0,obs:[],score:0,dead:false,started:true}; }
     else if(dino.y===0){ dino.v=-6.6; }
@@ -655,7 +689,10 @@ function b2Hold(){
   const n=SCREENS[tab].name;
   if(n==='SPOTIFY'){ track=(track+1)%TRACKS.length; trackPos=0; playing=true; }
   else if(n==='TIMER'){ timerPreset=(timerPreset+1)%PRESETS.length; timerLeft=PRESETS[timerPreset]; timerRunning=false; }
-  else if(n==='GAMES'&&!game){ pick=(pick+1)%GAMES.length; }
+  else if(n==='GAMES'&&!game){                        // hold starts
+    game=GAMES[pick][0];
+    if(game==='ball'){ ballUntil=t+18; }
+  }
   else b2Tap();
 }
 function wire(el,tap,hold){

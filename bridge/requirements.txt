@@ -1,0 +1,3 @@
+# The bridge is mostly standard library. These two are for the calendar feed.
+icalendar
+recurring-ical-events
