@@ -24,8 +24,6 @@ Mimic sits next to the keyboard and keeps an eye on things. It knows the weather
 what is playing, how long until the next meeting, how hard the PC is working, and
 how much of the Claude usage window is left — and it pulls a face about all of it.
 
-Eight screens, two buttons, one buzzer. No touchscreen, no app, no cloud account
-on the device.
 
 <p align="center">
   <img src="docs/assets/photos/hero.jpg" alt="Mimic on a desk: a red and black printed case holding an OLED showing the games menu, with two large round buttons in front" width="760">
