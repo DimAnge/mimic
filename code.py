@@ -329,26 +329,68 @@ ssid = os.getenv("WIFI_SSID")
 password = os.getenv("WIFI_PASSWORD")
 api_key = os.getenv("OPENWEATHER_TOKEN")
 
-set_lines("Wi-Fi", "Connecting")
-display.refresh()
-
-print("Connecting Wi-Fi...")
-try:
-    wifi.radio.connect(ssid, password)
-except Exception as exc:
-    print("Wi-Fi failed:", exc)
-boot_mark("wifi connected")
-pool = adafruit_connection_manager.get_radio_socketpool(wifi.radio)
-ssl_context = adafruit_connection_manager.get_radio_ssl_context(wifi.radio)
-requests = adafruit_requests.Session(pool, ssl_context)
-time.sleep(0.3)          # let the radio finish settling before the first socket
+pool = None
+ssl_context = None
+requests = None
 
 
 def online():
     try:
         return bool(wifi.radio.connected)
+    except AttributeError:
+        # older builds lack .connected; an address means we're associated
+        return wifi.radio.ipv4_address is not None
     except Exception:
         return False
+
+
+def connect_wifi(attempts=5, show=True):
+    """Try to associate, a few times.
+
+    A cold power-up is slower than a soft reload: the radio firmware has to
+    load and associate from scratch, and the first attempt often fails.
+    During development you almost never see this, because saving a file
+    triggers a soft reload that keeps WiFi up from the previous run.
+    """
+    for i in range(attempts):
+        if show:
+            set_lines("Wi-Fi", f"Connecting {i + 1}/{attempts}")
+            display.refresh()
+        try:
+            wifi.radio.connect(ssid, password)
+            if online():
+                return True
+        except Exception as exc:
+            print(f"Wi-Fi attempt {i + 1} failed:", exc)
+        if i + 1 < attempts:
+            time.sleep(1.5)
+    return False
+
+
+def rebuild_session():
+    """Fresh socket pool and session after WiFi comes back.
+
+    Sockets opened before a drop are dead, but the pool doesn't know that.
+    Without this, the first requests after reconnecting fail like the
+    bridge is still unreachable.
+    """
+    global pool, ssl_context, requests
+    try:
+        adafruit_connection_manager.connection_manager_close_all(release_references=True)
+    except Exception:
+        pass
+    pool = adafruit_connection_manager.get_radio_socketpool(wifi.radio)
+    ssl_context = adafruit_connection_manager.get_radio_ssl_context(wifi.radio)
+    requests = adafruit_requests.Session(pool, ssl_context)
+
+
+print("Connecting Wi-Fi...")
+if connect_wifi(attempts=5):
+    boot_mark("wifi connected")
+else:
+    boot_mark("wifi FAILED -- continuing offline")
+rebuild_session()
+time.sleep(0.3)          # let the radio finish settling before the first socket
 
 
 # --- Burn-in protection ---
@@ -852,12 +894,17 @@ SYSTEM_REFRESH = 5.0
 SPOTIFY_REFRESH = 4.0
 BACKGROUND_REFRESH = 60.0        # keeps the meeting countdown honest
 WIFI_CHECK = 8.0
-RECONNECT_EVERY = 60.0
+RECONNECT_EVERY = 30.0
 
 last_tick = time.monotonic()
 last_input = time.monotonic()
 last_wifi_check = 0.0
-last_reconnect = time.monotonic()
+last_reconnect = 0.0
+
+# Start as "was online" so a failed boot still counts as a drop and
+# offers the game once, same as losing WiFi later would.
+was_online = True
+auto_games_at = 0.0
 
 prev_mode_btn = True
 prev_action_btn = True
@@ -1138,23 +1185,44 @@ while True:
             mood_locked_until = now + 20.0
             sfx.play("alarm")
 
-    # --- WI-FI WATCHDOG: no network means it's dino o'clock ---
+    # --- WI-FI WATCHDOG ---
+    # Acts on *transitions*, not on state. The old version forced the games
+    # tab every time it found us offline, so you could never leave it.
     if now - last_wifi_check > WIFI_CHECK:
         last_wifi_check = now
-        if not online():
-            if mode != "GAMES":
-                current_tab = MODES.index("GAMES")
-                enter_mode("GAMES", now)
-                game_index = 0              # Dino Run
-                launch_game()
-            if (now - last_reconnect > RECONNECT_EVERY
-                    and not (games_state == "dino"
-                             and game.state == DINO_PLAYING)):
+        is_online = online()
+
+        if not is_online:
+            if was_online:
+                # just dropped: offer the game, exactly once
+                print("Wi-Fi lost")
+                if mode != "GAMES":
+                    current_tab = MODES.index("GAMES")
+                    enter_mode("GAMES", now)
+                    game_index = 0              # Dino Run
+                    launch_game()
+                    auto_games_at = now
+
+            # connect() blocks for seconds, so never mid-run
+            mid_run = (games_state == "dino" and game is not None
+                       and game.state == DINO_PLAYING)
+            if now - last_reconnect > RECONNECT_EVERY and not mid_run:
                 last_reconnect = now
-                try:
-                    wifi.radio.connect(ssid, password)
-                except Exception:
-                    pass
+                if connect_wifi(attempts=1, show=False):
+                    is_online = True
+
+        if is_online and not was_online:
+            # just came back
+            print("Wi-Fi restored")
+            rebuild_session()
+            fetch_status(now)
+            # if we dragged you into the game and you never touched it,
+            # put you back where you'd expect to be
+            if auto_games_at and last_input <= auto_games_at:
+                go_home(now)
+            auto_games_at = 0.0
+
+        was_online = is_online
 
     # --- BACKGROUND POLL ---
     if (mode not in ("USAGE", "SYSTEM", "SPOTIFY", "CALENDAR", "GAMES")
