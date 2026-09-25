@@ -15,7 +15,7 @@
 </p>
 
 <p align="center">
-  <a href="https://YOUR-USERNAME.github.io/mimic/"><b>Try the interface in your browser &rarr;</b></a>
+  <a href="https://DimAnge.github.io/mimic/"><b>Try the interface in your browser &rarr;</b></a>
 </p>
 
 ---
@@ -54,9 +54,12 @@ troubleshooting section below is where most of the learning ended up.
 
 - [Why this exists](#why-this-exists)
 - [The screens](#the-screens)
+- [Controls](#controls)
 - [Bill of materials](#bill-of-materials)
 - [Wiring](#wiring)
 - [Getting it running](#getting-it-running)
+- [Configuration](#configuration)
+- [How it starts](#how-it-starts)
 - [The bridge](#the-bridge)
 - [The case](#the-case)
 - [Repository layout](#repository-layout)
@@ -71,17 +74,56 @@ the current tab needs.
 
 | Tab | What it shows | Button 2 |
 | --- | --- | --- |
-| `FACE` | Animated eyes: idle blinking, gaze drift, moods driven by weather and context | Cycles mood |
-| `WEATHER` | Current conditions, today's range, and a clock big enough to read across the room | — |
-| `CALENDAR` | The next few events from a private iCal feed | — |
-| `SPOTIFY` | Current track and progress, via the Spotify Web API | Play / pause, hold to skip |
-| `SYSTEM` | CPU, memory, disk and uptime of the PC beside it | — |
-| `TIMER` | Countdown with three presets and a jingle on zero | Start / pause, hold to change preset |
-| `USAGE` | How much of the current Claude usage window has been spent | — |
-| `GAMES` | A menu holding the dino runner and a magic eight ball | Tap picks the game, hold starts it |
+| `FACE` | Animated eyes, a clock, the date, and a note icon while music plays | Cycles the seven moods by hand, for 20 seconds |
+| `WEATHER` | A clock big enough to read across the room, temperature and conditions | — |
+| `CALENDAR` | The next three events from a private iCal feed | Pages through them |
+| `SPOTIFY` | Track, artist and progress, via the Spotify Web API | Tap plays or pauses, hold skips |
+| `SYSTEM` | CPU, memory, disk, temperature and uptime of the PC beside it — and the Pico's own IP when the bridge is unreachable | — |
+| `TIMER` | Countdown with eight presets from 5 to 60 minutes | Tap starts or stops, hold cycles the preset |
+| `USAGE` | Session and weekly Claude usage, with both reset countdowns | — |
+| `GAMES` | A menu holding the dino runner and a magic eight ball | Tap moves the cursor, hold starts the game |
 
-The two games live in `dino.py` and `eightball.py` and are imported lazily, the
-first time you open one, so they cost nothing until they are used.
+Everything the bridge knows arrives in a single `GET /status`, so one request
+feeds the calendar, system, usage and Spotify tabs at once.
+
+The two games live in `dino.py` and `eightball.py` and are imported on first
+launch rather than at boot — they are the largest modules in the project, and
+CircuitPython compiles every `.py` as it imports it, so deferring them cuts
+seconds off startup. Inside a game, button 1 backs out to the menu instead of
+changing tab.
+
+## Controls
+
+Two buttons, two gestures. A hold is 0.6 s.
+
+| Where | Button 1 | Button 2 tap | Button 2 hold |
+| --- | --- | --- | --- |
+| Any tab | Next tab | See the table above | See the table above |
+| Any tab, held | Home (FACE) | — | — |
+| Games menu | Next tab | Move the cursor | Start the selected game |
+| In a game | Back to the menu | Jump / shake | — |
+| Meeting popup | — | Dismiss | — |
+
+After 45 seconds without a press it returns to FACE on its own — except on
+SPOTIFY while something is playing, which stays put.
+
+### What the face is reacting to
+
+Left alone, the mood is not random. Context decides it, in this order, and the
+first match wins:
+
+| Priority | Condition | Mood |
+| --- | --- | --- |
+| 1 | The timer is running | angry — focused, do not disturb |
+| 2 | Claude session usage ≥ 90% | surprised |
+| 3 | Night | sleepy |
+| 4 | The PC has been up more than 2 days | sleepy — it could use a reboot |
+| 5 | Music is playing | happy |
+| 6 | The weather is notable | sad or happy |
+| 7 | Nothing in particular | neutral |
+
+Pressing button 2 on the FACE tab overrides this for 20 seconds, then context
+takes over again.
 
 ### Screenshots
 
@@ -104,9 +146,9 @@ two colours. Close enough that you cannot tell which is which above.
 A meeting popup interrupts any tab when the next calendar event is close.
 
 Burn-in protection runs underneath all of it: the whole frame shifts by a pixel
-periodically and brightness drops at night. There is no idle sleep — an idle
-timeout was tried and removed, because a desk buddy that blanks itself while you
-are sitting right there is just a dark rectangle.
+every few minutes and brightness drops at night. There is no idle sleep — an
+idle timeout was tried and removed, because a desk buddy that blanks itself
+while you are sitting right there is just a dark rectangle.
 
 ## Bill of materials
 
@@ -170,71 +212,161 @@ adafruit_requests.mpy
 board and fill it in. `settings.toml` is gitignored; keep it that way.
 
 ```toml
-CIRCUITPY_WIFI_SSID     = "your-network"
-CIRCUITPY_WIFI_PASSWORD = "your-password"
-BRIDGE_HOST             = "192.168.1.42"
-CITY                    = "Athens"
+WIFI_SSID         = "your-network"
+WIFI_PASSWORD     = "your-password"
+BRIDGE_URL        = "http://192.168.1.42:8080/status"
+OPENWEATHER_TOKEN = "your-openweather-key"
 ```
 
-**4. Deploy.**
+Find the bridge address with `hostname -I | awk '{print $1}'` on the PC.
+
+**4. Deploy.** All seven files, to the root of the drive, not `/lib`:
 
 ```bash
-cp code.py eyes.py dino.py eightball.py sfx.py icons.py \
+cp code.py app.py eyes.py dino.py eightball.py sfx.py icons.py \
    /media/$USER/CIRCUITPY/ && sync
 tio /dev/ttyACM0    # watch it boot
 ```
 
-Root of the drive, not `/lib`. The `&& sync` is not optional: without it the
-drive can be unmounted mid-write and the board boots into a partially written
-file.
+`code.py` and `app.py` are a pair and must be deployed together: `code.py` is a
+launcher of about fifty lines, and the entire program lives in `app.py`. Copying
+one without the other leaves the board running a mismatched half.
+
+Then eject the drive properly before unplugging. `sync` alone is not enough —
+see Troubleshooting.
 
 **5. Start the bridge** on the PC Mimic lives next to — see below.
+
+## Configuration
+
+Everything the board needs is in `settings.toml` on the CIRCUITPY drive. There
+is no config file in the repository.
+
+| Key | What it does |
+| --- | --- |
+| `WIFI_SSID` | 2.4 GHz network name — the Pico W radio does not do 5 GHz |
+| `WIFI_PASSWORD` | Network password |
+| `BRIDGE_URL` | Full URL of the bridge's status endpoint, e.g. `http://192.168.1.42:8080/status`. The Spotify control routes are derived from it |
+| `OPENWEATHER_TOKEN` | OpenWeather API key for the weather tab |
+
+The city is set in `app.py` (`CITY = "Athens,GR"`), along with the thresholds
+worth knowing about: `MEETING_WARN_MIN` for how far ahead the popup appears,
+`UPTIME_TIRED_MIN` and `USAGE_ALERT_PCT` for the mood triggers, and the various
+`*_REFRESH` intervals.
+
+## How it starts
+
+`code.py` is a launcher of about fifty lines. It imports `app.py`, which never
+returns unless something goes wrong, and handles the two ways it can go wrong on
+a desk with no computer attached.
+
+**The network stack can wedge.** On a cold power-on the Pico can join Wi-Fi and
+get an address, yet pass no traffic at all: every connection times out with
+`EINPROGRESS` and even DNS fails. Once in that state it never recovers on its
+own, and rebuilding the socket pool does not help. A soft reset clears it — but
+only once the network is genuinely ready, which can take a minute or two after
+power-on.
+
+So `app.py` watches for it. Two bridge failures in a row could just mean the PC
+is off, so it then tries a DNS lookup: if that fails too while Wi-Fi claims to
+be up, the stack is dead rather than the bridge. It raises `NetworkStuck`, and
+`code.py` answers with `supervisor.reload()`.
+
+That can only happen ten times. The count lives in `microcontroller.nvm[0]`,
+because ordinary variables do not survive a reset. It goes back to zero on a
+genuine power-on and on the first successful bridge fetch, so a network that is
+merely slow gets as many tries as it needs across boots, while one that is truly
+broken cannot reset the board forever. A fresh board's NVM reads 255, which is
+treated as zero.
+
+**A crash should not be fatal.** When a CircuitPython program raises, the board
+prints the traceback and waits for a keypress on the serial console — which on a
+desk looks identical to a dead device. Any other exception is caught, printed,
+and followed by a five-second pause and a restart. `Ctrl-C` still drops you into
+the REPL, because `KeyboardInterrupt` is not an `Exception` subclass and passes
+straight through.
+
+`app.py` also pauses a second on cold boot before touching the OLED: on a
+power-on everything wakes at the same instant and CircuitPython gets there
+before the display is ready to answer on I2C.
 
 ## The bridge
 
 The Pico has no business holding Spotify tokens or a private calendar URL, so it
-doesn't. `bridge/bridge.py` is a small HTTP server that runs on the PC, listens
-on port 8080, and hands back plain numbers. The Pico polls it.
-
-`bridge/spotify.py` is both the one-time login (`python3 spotify.py`, which runs
-the PKCE flow and stores the refresh token) and the module the bridge imports.
-`bridge/cal_debug.py` exists only for troubleshooting the calendar feed.
-
-Editing any of them leaves the old process running — restart the service after
-every change.
+doesn't. `bridge/bridge.py` is an HTTP server that runs on the PC, listens on
+port 8080, and hands back plain integers and pre-formatted strings — the Pico
+never parses an ISO timestamp, because CircuitPython has no `datetime`.
 
 | Endpoint | Returns |
 | --- | --- |
-| `GET /stats` | CPU load, memory, disk, uptime |
-| `GET /next` | The next calendar event and its start time |
-| `GET /now` | Spotify playback state and Claude usage percentage |
+| `GET /status` | Everything: Claude usage, CPU, memory, disk, temperature, uptime, the next three calendar events, Spotify state, and the wall clock |
+| `GET /spotify/playpause` | Toggles playback |
+| `GET /spotify/next` | Skips forward |
+| `GET /spotify/previous` | Skips back |
 
-Spotify uses PKCE OAuth; the refresh token stays in the bridge's config file on
-the PC. The calendar is read from the private iCal URL and parsed PC-side.
+The control routes are GETs so the Pico can fire them in one line. Playback
+control needs Spotify Premium; reading what is playing works on any account.
 
-It needs two packages for the calendar — everything else is standard library:
+`/status` also carries `clock`, which is how the board sets its RTC. A TLS
+handshake on a microcontroller costs seconds at boot, and the bridge is already
+being talked to over plain HTTP, so it hands over the wall clock and the Pico
+skips the HTTPS time sync entirely. HTTPS remains the fallback when the bridge
+is unreachable.
+
+Results are cached per source — 60 s for `ccusage`, 4 s for `/proc`, 5 min for
+the calendar, 3 s for Spotify — so polling costs almost nothing.
+
+### Setting it up
+
+The calendar needs two packages; everything else is standard library:
 
 ```bash
 python3 -m venv ~/desky-venv
-~/desky-venv/bin/pip install icalendar recurring-ical-events
+~/desky-venv/bin/pip install -r bridge/requirements.txt
 ```
 
-The calendar's private iCal URL lives in `~/.desky-ical-url` (or the
-`DESKY_ICAL_URL` environment variable), never in the repository:
+Credentials live in your home directory, never in the repository:
 
 ```bash
 echo 'https://your-private-ical-url' > ~/.desky-ical-url
-chmod 600 ~/.desky-ical-url
+echo 'your-spotify-client-id'        > ~/.desky-spotify-client
+chmod 600 ~/.desky-ical-url ~/.desky-spotify-client
 ```
 
-Install it as a user service so it comes back after a reboot:
+The iCal URL is a bearer credential — anyone holding it can read your calendar.
+Then authorise Spotify once, which writes a refresh token to
+`~/.desky-spotify.json`:
+
+```bash
+~/desky-venv/bin/python bridge/spotify.py
+```
+
+It uses the Authorization Code flow with PKCE, so there is no client secret to
+store. The redirect URI must be registered in the Spotify dashboard exactly as
+`http://127.0.0.1:8888/callback` — Spotify rejects plain HTTP except loopback
+literals, and `localhost` does not count as one.
+
+Install the service so it comes back after a reboot:
 
 ```bash
 mkdir -p ~/.config/systemd/user
 cp bridge/mimic-bridge.service ~/.config/systemd/user/
 systemctl --user enable --now mimic-bridge
-systemctl --user status mimic-bridge
+systemctl --user status mimic-bridge --no-pager
 ```
+
+The unit sets `PYTHONUNBUFFERED=1` so `journalctl --user -u mimic-bridge -f`
+shows output as it happens rather than in blocks.
+
+Editing any bridge file leaves the old process running. Restart after every
+change:
+
+```bash
+systemctl --user restart mimic-bridge
+```
+
+`bridge/cal_debug.py` exists only for troubleshooting the calendar feed — it
+prints which calendar the URL belongs to and every occurrence it can see.
 
 If the PC sleeps, Mimic falls back to its offline screens rather than hanging.
 
@@ -288,18 +420,20 @@ download rather than a design.
 
 ```
 mimic/
-├── code.py                 # main loop and all eight screens
+├── code.py                 # launcher: stuck-network and crash recovery
+├── app.py                  # the program: all eight tabs and the main loop
 ├── eyes.py                 # the face: moods, blinking, gaze, boot animation
 ├── dino.py                 # the runner, imported on first launch
 ├── eightball.py            # the magic eight ball, imported on first launch
 ├── sfx.py                  # the buzzer and its melody table
 ├── icons.py                # weather sprites
 ├── screenshot.py           # framebuffer dumper, see tools/shot.py
-├── settings.toml.example   # Wi-Fi and bridge config template
+├── settings.toml.example   # Wi-Fi, bridge URL and weather key template
 ├── bridge/
 │   ├── bridge.py           # PC-side HTTP service
 │   ├── spotify.py          # one-time PKCE login, and the bridge's module
 │   ├── cal_debug.py        # calendar feed troubleshooting
+│   ├── requirements.txt
 │   └── mimic-bridge.service
 ├── hardware/
 │   ├── case.scad           # tray, lid and spacer
@@ -311,13 +445,26 @@ mimic/
 └── tools/                  # shot.py and the asset generators
 ```
 
-Before the first push, replace `YOUR-USERNAME` in this file and in
-`docs/index.html`.
-
 ## Troubleshooting
 
 **The board boots to an error after a deploy.** The write did not flush. Copy
-again with `&& sync` and watch the console with `tio /dev/ttyACM0`.
+again with `&& sync`, eject the drive, and watch the console with
+`tio /dev/ttyACM0`.
+
+**A bare `OSError: [Errno 5]` with no traceback.** The filesystem on the board is
+corrupted, almost always from unplugging while a write was still in flight.
+`sync` flushes your PC's cache, but the Pico can still be mid-write: eject the
+drive from the file manager, or `udisksctl unmount -b /dev/sdX1`, before pulling
+the cable. To recover, first copy `settings.toml` and `lib/` off the board if
+you still can, then in the REPL:
+
+```python
+import storage
+storage.erase_filesystem()
+```
+
+The board reboots with an empty CIRCUITPY drive. Put `lib/`, `settings.toml`
+and the seven program files back.
 
 **It will not join the network.** The Pico W radio is 2.4 GHz only. A combined
 2.4/5 GHz SSID sometimes works and sometimes does not; give the 2.4 GHz band its
@@ -340,23 +487,40 @@ barrel do the gripping.
 system Python with an older version, and point `pipx` at the real one, for
 example `/usr/bin/python3.12`.
 
-**Everything reads zero, or one section never populates.** Check `BRIDGE_HOST`
-in `settings.toml` against `hostname -I` on the PC. A wrong address fails
-quietly: the Pico asks nobody and gets nothing back.
+**`EINPROGRESS` on every request.** Nine times out of ten this is the wrong IP
+in `BRIDGE_URL`: the Pico is connecting to an address where nothing answers.
+Compare it with `hostname -I` on the PC. PCs on DHCP change address after a
+router restart, so give the PC a **DHCP reservation** in the router and the
+address stops moving. The remaining case is the cold-boot wedge above, which
+`code.py` handles on its own — the screen shows `Network reset n/10` while it
+does.
+
+**Everything reads zero, or one section never populates.** Same first check:
+`BRIDGE_URL` against `hostname -I`. A wrong address fails quietly. When the
+bridge is unreachable the SYSTEM tab shows the Pico's own IP and the last error,
+which is usually enough to tell which side is wrong.
 
 **The screen shows stale numbers.** The bridge is not running, or the PC is
-asleep. `systemctl --user status mimic-bridge`.
+asleep. `systemctl --user status mimic-bridge --no-pager`, and
+`journalctl --user -u mimic-bridge -f` to watch it live.
 
-**The calendar says nothing is scheduled when something is.** Check the window
-before the parser: the bridge only reports events inside the next few hours, so
-a meeting tomorrow morning correctly shows as nothing tonight. Then run
+**Usage shows `--%`.** The usage tab reads `ccusage json`, and that output format
+is undocumented and not a stable API — a Claude Code update can change or
+remove it without warning. Run `ccusage json` by hand; if it errors or the keys
+have moved, `read_usage()` in `bridge.py` is the place to adapt. If `ccusage` is
+not on the service's `PATH`, set `CCUSAGE_BIN` to its full path in the unit.
+
+**The calendar says nothing is scheduled when something is.** The bridge looks
+seven days ahead and the tab shows the next three, so an empty tab means the
+feed really has nothing timed in that window. Run
 `python3 bridge/cal_debug.py`, which prints which calendar the feed belongs to
 and every occurrence it can see. All-day entries are ignored on purpose —
 birthdays and public holidays are not meetings and should not raise a popup.
 
 ## Roadmap
 
-- [ ] Face reacts to more context: happy while music plays, tired when uptime is long, worried as the usage window fills
+- [x] Face reacts to context — timer, usage, night, uptime, music, weather
+- [ ] Persist the dino high score across restarts
 - [ ] Top-mounted screen holder integrated into the tray, replacing the separate stand
 - [ ] A task button that cycles today's tasks and marks them done
 
